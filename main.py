@@ -75,11 +75,11 @@ class LLM:
             try:
                 p = input()
 
-                if p.lower() in {"m"}:
+                if p.lower() in {"'"}:
                     multi_p = []
                     while True:
                         p = input()
-                        if p.lower() in {"m"}:
+                        if p.lower() in {"'"}:
                             break
                         multi_p.append(p)
                     p = "\n".join(multi_p)
