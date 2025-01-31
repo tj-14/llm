@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from openai import OpenAI
+from trafilatura import extract, fetch_url
 
 
 class LOGGER:
@@ -75,14 +76,24 @@ class LLM:
             try:
                 p = input()
 
-                if p.lower() in {"'"}:
+                if p.lower() in {"'", "m"}:
                     multi_p = []
                     while True:
                         p = input()
-                        if p.lower() in {"'"}:
+                        if p.lower() in {"'", "m"}:
                             break
                         multi_p.append(p)
                     p = "\n".join(multi_p)
+
+                if p.lower() in {"h", "u", "r"}:
+                    url = input("Enter URL: ")
+                    html = fetch_url(url)
+                    text = extract(html)
+                    P(url, file_only=True)
+                    P()
+                    P(text)
+                    P()
+                    p = text + "\n\n\n" + input()
 
                 P(p, file_only=True)
                 P()
