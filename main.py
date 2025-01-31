@@ -4,8 +4,6 @@ from pathlib import Path
 
 from openai import OpenAI
 
-original_print = print
-
 
 class LOGGER:
     def __init__(self):
@@ -20,13 +18,13 @@ class LOGGER:
         if "file_only" in kwargs:
             file_only = kwargs.pop("file_only")
         if not file_only:
-            original_print(*args, **kwargs)
+            print(*args, **kwargs)
         with open(self.log_file, "a") as f:
-            original_print(*args, **kwargs, file=f)
+            print(*args, **kwargs, file=f)
 
 
 logger = LOGGER()
-print = logger.log
+P = logger.log
 
 
 class LLM:
@@ -63,31 +61,36 @@ class LLM:
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 msg = chunk.choices[0].delta.content
-                print(msg, end="", flush=True)
+                P(msg, end="", flush=True)
 
                 response += msg
 
-        print()
-        print()
+        P()
+        P()
         self.add_message("assistant", response)
 
     def chat(self):
         while True:
-            print("# P: \n")
+            P("# P: ")
             try:
-                p = input().strip()
-                if p.lower() in {"exit", "quit"}:
-                    print("Exiting chat.")
-                    break
+                p = input()
 
-                print(p, file_only=True)
-                print()
+                if p.lower() in {"m"}:
+                    multi_p = []
+                    while True:
+                        p = input()
+                        if p.lower() in {"m"}:
+                            break
+                        multi_p.append(p)
+                    p = "\n".join(multi_p)
+
+                P(p, file_only=True)
+                P()
                 self.add_message("user", p)
 
-                print("# M: \n")
+                P("# M: ")
                 self.chat_once()
             except KeyboardInterrupt:
-                print("\nExiting chat.")
                 break
 
 
