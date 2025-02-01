@@ -1,9 +1,14 @@
 import datetime
 import os
+import readline  # not used, but needed for input() to work properly
+import subprocess
 from pathlib import Path
 
 from openai import OpenAI
 from trafilatura import extract, fetch_url
+
+N_RG_CHOICES = 3
+VAULTDIR = "/Users/tj/Dropbox/tj-vault-dropbox/"
 
 
 class LOGGER:
@@ -26,6 +31,14 @@ class LOGGER:
 
 logger = LOGGER()
 P = logger.log
+
+
+def IN(*args, **kwargs):
+    if len(args) > 0:
+        P(args[0], file_only=True)
+    i = input(*args, **kwargs)
+    P(i, file_only=True)
+    return i
 
 
 class LLM:
@@ -70,32 +83,56 @@ class LLM:
         P()
         self.add_message("assistant", response)
 
+    def rag_prompt(self, context, source):
+        P()
+        P(source, file_only=True)
+        context = f"<context>\n{context}\n</context>"
+        P(context)
+        P()
+
+        p = IN()
+        return context + "\n\n\n" + p
+
     def chat(self):
         while True:
             P("# P: ")
             try:
-                p = input()
+                p = IN()
 
                 if p.lower() in {"'", "m"}:
                     multi_p = []
                     while True:
-                        p = input()
+                        p = IN()
                         if p.lower() in {"'", "m"}:
                             break
                         multi_p.append(p)
                     p = "\n".join(multi_p)
-
-                if p.lower() in {"h", "u", "r"}:
-                    url = input("Enter URL: ")
+                elif p.lower() in {"h", "u", "r"}:
+                    url = IN("Enter URL: ")
                     html = fetch_url(url)
                     text = extract(html)
-                    P(url, file_only=True)
-                    P()
-                    P(text)
-                    P()
-                    p = text + "\n\n\n" + input()
 
-                P(p, file_only=True)
+                    p = self.rag_prompt(text, url)
+                elif p.lower() in {"rg"}:
+                    g = IN()
+                    rg = subprocess.run(
+                        ["rg", "-i", g, VAULTDIR, "-l"], capture_output=True
+                    )
+                    choices = rg.stdout.decode().split("\n")
+                    choices = choices[:N_RG_CHOICES]
+                    for i, choice in enumerate(choices):
+                        P(f"{i}: {Path(choice).relative_to(VAULTDIR)}")
+                    try:
+                        choice = int(IN())
+                        with open(choices[choice]) as f:
+                            text = f.read()
+
+                        p = self.rag_prompt(text, choices[choice])
+                    except Exception as e:
+                        P(e)
+                        P("Invalid choice")
+                        continue
+
                 P()
                 self.add_message("user", p)
 
