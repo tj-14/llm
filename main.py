@@ -1,19 +1,20 @@
 import datetime
+import json
 import os
 import readline  # not used, but needed for input() to work properly
+import sqlite3
 import subprocess
 from pathlib import Path
 
 from openai import OpenAI
 from trafilatura import extract, fetch_url
 
-N_RG_CHOICES = 3
-VAULTDIR = "/Users/tj/Dropbox/tj-vault-dropbox/"
+from constants import BASEPATH, DATABASE, N_CONVERSATIONS, N_RG_CHOICES, VAULTDIR
 
 
 class LOGGER:
     def __init__(self):
-        base_dir = Path("/Users/tj/.llm/logs")
+        base_dir = BASEPATH / "logs"
         base_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = base_dir / (
             datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + ".txt"
@@ -51,6 +52,8 @@ class LLM:
         )
         self.model = "typhoon-v2-70b-instruct"
         self.messages = []
+        self.conn = sqlite3.connect(DATABASE)
+        self.cursor = self.conn.cursor()
 
     def add_message(self, role, content):
         self.messages.append(
@@ -59,6 +62,45 @@ class LLM:
                 "content": content,
             }
         )
+
+    def undo_message(self):
+        if len(self.messages) > 1:
+            self.messages = self.messages[:-2]
+
+    def get_one_line_summary(self):
+        self.add_message(
+            "assistant", "summarize this conversation as a one-line heading only"
+        )
+        return self.chat_once()
+
+    def save_conversation(self):
+        # "summarize this conversation as a one-line heading only"
+        conversation_content = json.dumps(self.messages)
+        summary = self.get_one_line_summary()
+
+        self.cursor.execute(
+            "INSERT INTO conversations (content, summary) VALUES (?, ?)",
+            (conversation_content, summary),
+        )
+        conversation_id = self.cursor.lastrowid
+        self.conn.commit()
+        return conversation_id
+
+    def load_conversation(self, conversation_id):
+        self.cursor.execute(
+            "SELECT content FROM conversations WHERE id = ?", (conversation_id,)
+        )
+        result = self.cursor.fetchone()
+        if result:
+            self.messages = json.loads(result[0])
+        else:
+            self.messages = []
+        return self.messages
+
+    def load_all_conversations(self):
+        self.cursor.execute("SELECT summary, content FROM conversations")
+        results = self.cursor.fetchall()
+        return [(result[0], json.loads(result[1])) for result in results]
 
     def chat_once(self):
         stream = self.client.chat.completions.create(
@@ -82,6 +124,7 @@ class LLM:
         P()
         P()
         self.add_message("assistant", response)
+        return response
 
     def rag_prompt(self, context, source):
         P()
@@ -116,22 +159,34 @@ class LLM:
                 elif p.lower() in {"rg"}:
                     g = IN()
                     rg = subprocess.run(
-                        ["rg", "-i", g, VAULTDIR, "-l"], capture_output=True
+                        ["rg", "-i", g, str(VAULTDIR), "-l"], capture_output=True
                     )
                     choices = rg.stdout.decode().split("\n")
                     choices = choices[:N_RG_CHOICES]
                     for i, choice in enumerate(choices):
                         P(f"{i}: {Path(choice).relative_to(VAULTDIR)}")
-                    try:
-                        choice = int(IN())
-                        with open(choices[choice]) as f:
-                            text = f.read()
+                    choice = int(IN())
+                    with open(choices[choice]) as f:
+                        text = f.read()
 
-                        p = self.rag_prompt(text, choices[choice])
-                    except Exception as e:
-                        P(e)
-                        P("Invalid choice")
-                        continue
+                    p = self.rag_prompt(text, choices[choice])
+                elif p.lower() in {"undo"}:
+                    self.undo_message()
+                    continue
+                elif p.lower() in {"save"}:
+                    conversation_id = self.save_conversation()
+                    P(f"Conversation saved with id {conversation_id}")
+                    continue
+                elif p.lower() in {"load"}:
+                    all_conversations = self.load_all_conversations()
+                    for i, (summary, _) in enumerate(
+                        all_conversations[:N_CONVERSATIONS]
+                    ):
+                        P(f"{i}: {summary}")
+                    conversation_id = IN("Enter conversation id: ")
+                    messages = self.load_conversation(conversation_id)
+                    P(messages)
+                    continue
 
                 P()
                 self.add_message("user", p)
@@ -139,6 +194,9 @@ class LLM:
                 P("# M: ")
                 self.chat_once()
             except KeyboardInterrupt:
+                P()
+                conversation_id = self.save_conversation()
+                P(f"Conversation saved with id {conversation_id}")
                 break
 
 
