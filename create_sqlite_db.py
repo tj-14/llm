@@ -12,7 +12,8 @@ cursor.execute("""
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        summary TEXT NOT NULL
+        summary TEXT NOT NULL,
+        model TEXT NOT NULL
     )
 """)
 

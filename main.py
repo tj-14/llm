@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import json
 import os
@@ -6,6 +7,7 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
+from mistralai import Mistral
 from openai import OpenAI
 from rich.console import Console
 from rich.markdown import Markdown
@@ -45,14 +47,20 @@ def IN(*args, **kwargs):
 
 
 class LLM:
-    def __init__(self):
-        self.api_key = os.environ.get("OPENTYPHOON_API_KEY")
-        self.base_url = "https://api.opentyphoon.ai/v1"
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-        )
-        self.model = "typhoon-v2-70b-instruct"
+    def __init__(self, model="mistral"):
+        if model == "typhoon":
+            self.api_key = os.environ.get("OPENTYPHOON_API_KEY")
+            self.base_url = "https://api.opentyphoon.ai/v1"
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+            self.model = "typhoon-v2-70b-instruct"
+        elif model == "mistral":
+            self.api_key = os.environ.get("MISTRAL_API_KEY")
+            self.model = "mistral-small-latest"
+            self.client = Mistral(api_key=self.api_key)
+
         self.messages = []
         self.conn = sqlite3.connect(DATABASE)
         self.cursor = self.conn.cursor()
@@ -71,18 +79,17 @@ class LLM:
 
     def get_one_line_summary(self):
         self.add_message(
-            "assistant", "summarize this conversation as a one-line heading only"
+            "user", "summarize this conversation as a one-line heading only"
         )
         return self.chat_once()
 
     def save_conversation(self):
-        # "summarize this conversation as a one-line heading only"
         conversation_content = json.dumps(self.messages)
         summary = self.get_one_line_summary()
 
         self.cursor.execute(
-            "INSERT INTO conversations (content, summary) VALUES (?, ?)",
-            (conversation_content, summary),
+            "INSERT INTO conversations (content, summary, model) VALUES (?, ?, ?)",
+            (conversation_content, summary, self.model),
         )
         conversation_id = self.cursor.lastrowid
         self.conn.commit()
@@ -105,22 +112,31 @@ class LLM:
         return [(result[0], json.loads(result[1])) for result in results]
 
     def chat_once(self):
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=self.messages,
-            max_tokens=4096,
-            temperature=0.6,
-            top_p=0.95,
-            stream=True,
-        )
+        if isinstance(self.client, OpenAI):
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=self.messages,
+                max_tokens=4096,
+                temperature=0.6,
+                top_p=0.95,
+                stream=True,
+            )
+        elif isinstance(self.client, Mistral):
+            stream = self.client.chat.stream(
+                model=self.model,
+                messages=self.messages,
+            )
 
-        msg = ""
         response = ""
-        for chunk in stream:
-            if chunk.choices[0].delta.content:
-                msg = chunk.choices[0].delta.content
-                P(msg, end="", flush=True)
 
+        for chunk in stream:
+            if isinstance(self.client, OpenAI):
+                msg = chunk.choices[0].message.content
+            elif isinstance(self.client, Mistral):
+                msg = chunk.data.choices[0].delta.content
+
+            if msg:
+                P(msg, end="", flush=True)
                 response += msg
 
         P()
@@ -139,20 +155,18 @@ class LLM:
         return context + "\n\n\n" + p
 
     def chat(self):
-        print("', m: multiline")
-        print("url, rg, md")
-        print("undo, save, load")
-        print()
+        console = Console()
+        console.print(Markdown("# ': multiline | url, rg, md | undo, save, load"))
         while True:
             P("# P: ")
             try:
                 p = IN()
 
-                if p.lower() in {"'", "m"}:
+                if p.lower() in {"'"}:
                     multi_p = []
                     while True:
                         p = IN()
-                        if p.lower() in {"'", "m"}:
+                        if p.lower() in {"'"}:
                             break
                         multi_p.append(p)
                     p = "\n".join(multi_p)
@@ -184,17 +198,15 @@ class LLM:
                     P(f"Conversation saved with id {conversation_id}")
                     continue
                 elif p.lower() in {"load"}:
-                    all_conversations = self.load_all_conversations()
-                    for i, (summary, _) in enumerate(
-                        all_conversations[:N_CONVERSATIONS]
-                    ):
+                    all_conversations = self.load_all_conversations()[-N_CONVERSATIONS:]
+                    all_conversations = list(reversed(all_conversations))
+                    for i, (summary, _) in enumerate(all_conversations):
                         P(f"{i}: {summary}")
                     conversation_id = IN("Enter conversation id: ")
                     messages = self.load_conversation(conversation_id)
                     P(messages)
                     continue
                 elif p.lower() in {"md"}:
-                    console = Console()
                     md = Markdown(self.messages[-1]["content"])
                     console.print(md)
                     P()
@@ -213,10 +225,22 @@ class LLM:
                 break
 
 
-def main():
-    llm = LLM()
+def main(args):
+    llm = LLM(model=args.model)
     llm.chat()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="LLM")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="mistral",
+        help="Model to use (`mistral` or `typhoon`)",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
