@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 
 from openai import OpenAI
+from rich.console import Console
+from rich.markdown import Markdown
 from trafilatura import extract, fetch_url
 
 from constants import BASEPATH, DATABASE, N_CONVERSATIONS, N_RG_CHOICES, VAULTDIR
@@ -137,6 +139,10 @@ class LLM:
         return context + "\n\n\n" + p
 
     def chat(self):
+        print("', m: multiline")
+        print("url, rg, md")
+        print("undo, save, load")
+        print()
         while True:
             P("# P: ")
             try:
@@ -150,7 +156,7 @@ class LLM:
                             break
                         multi_p.append(p)
                     p = "\n".join(multi_p)
-                elif p.lower() in {"h", "u", "r"}:
+                elif p.lower() in {"url"}:
                     url = IN("Enter URL: ")
                     html = fetch_url(url)
                     text = extract(html)
@@ -187,6 +193,12 @@ class LLM:
                     messages = self.load_conversation(conversation_id)
                     P(messages)
                     continue
+                elif p.lower() in {"md"}:
+                    console = Console()
+                    md = Markdown(self.messages[-1]["content"])
+                    console.print(md)
+                    P()
+                    continue
 
                 P()
                 self.add_message("user", p)
@@ -194,9 +206,10 @@ class LLM:
                 P("# M: ")
                 self.chat_once()
             except KeyboardInterrupt:
-                P()
-                conversation_id = self.save_conversation()
-                P(f"Conversation saved with id {conversation_id}")
+                if len(self.messages) > 0:
+                    P()
+                    conversation_id = self.save_conversation()
+                    P(f"Conversation saved with id {conversation_id}")
                 break
 
 
