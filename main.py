@@ -180,6 +180,7 @@ class LLM:
                 if p.lower() in {"'"}:
                     P("Ctrl-D to end input")
                     p = sys.stdin.read()
+                    P(p, file_only=True)
                 elif p.lower() in {"url"}:
                     url = IN("Enter URL: ")
                     html = fetch_url(url)
