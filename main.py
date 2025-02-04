@@ -2,9 +2,10 @@ import argparse
 import datetime
 import json
 import os
-import readline  # not used, but needed for input() to work properly
+import readline  # needed for input() to behave
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 from mistralai import Mistral
@@ -169,7 +170,7 @@ class LLM:
     def chat(self):
         console = Console()
         console.print(
-            Markdown(f"# {self.model} | ': multiline | url, rg, md | undo, save, load")
+            Markdown(f"# {self.model} | ' (multiline), url, rg, md | undo, save, load")
         )
         while True:
             P("# P: ")
@@ -177,13 +178,8 @@ class LLM:
                 p = IN()
 
                 if p.lower() in {"'"}:
-                    multi_p = []
-                    while True:
-                        p = IN()
-                        if p.lower() in {"'"}:
-                            break
-                        multi_p.append(p)
-                    p = "\n".join(multi_p)
+                    P("Ctrl-D to end input")
+                    p = sys.stdin.read()
                 elif p.lower() in {"url"}:
                     url = IN("Enter URL: ")
                     html = fetch_url(url)
