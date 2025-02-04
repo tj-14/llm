@@ -11,6 +11,7 @@ from mistralai import Mistral
 from openai import OpenAI
 from rich.console import Console
 from rich.markdown import Markdown
+from together import Together
 from trafilatura import extract, fetch_url
 
 from constants import BASEPATH, DATABASE, N_CONVERSATIONS, N_RG_CHOICES, VAULTDIR
@@ -60,6 +61,14 @@ class LLM:
             self.api_key = os.environ.get("MISTRAL_API_KEY")
             self.model = "mistral-small-latest"
             self.client = Mistral(api_key=self.api_key)
+        elif model == "llama":
+            self.api_key = os.environ.get("TOGETHER_API_KEY")
+            self.client = Together(api_key=self.api_key)
+            self.model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+        elif model == "deepseek":
+            self.api_key = os.environ.get("TOGETHER_API_KEY")
+            self.client = Together(api_key=self.api_key)
+            self.model = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
 
         self.messages = []
         self.conn = sqlite3.connect(DATABASE)
@@ -86,6 +95,8 @@ class LLM:
     def save_conversation(self):
         conversation_content = json.dumps(self.messages)
         summary = self.get_one_line_summary()
+        summary = summary.strip()
+        summary = summary.split("\n")[-1]
 
         self.cursor.execute(
             "INSERT INTO conversations (content, summary, model) VALUES (?, ?, ?)",
@@ -96,6 +107,7 @@ class LLM:
         return conversation_id
 
     def load_conversation(self, conversation_id):
+        print(conversation_id)
         self.cursor.execute(
             "SELECT content FROM conversations WHERE id = ?", (conversation_id,)
         )
@@ -107,12 +119,12 @@ class LLM:
         return self.messages
 
     def load_all_conversations(self):
-        self.cursor.execute("SELECT summary, content FROM conversations")
+        self.cursor.execute("SELECT summary, id FROM conversations")
         results = self.cursor.fetchall()
-        return [(result[0], json.loads(result[1])) for result in results]
+        return list(results)
 
     def chat_once(self):
-        if isinstance(self.client, OpenAI):
+        if isinstance(self.client, OpenAI) or isinstance(self.client, Together):
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.messages,
@@ -130,8 +142,8 @@ class LLM:
         response = ""
 
         for chunk in stream:
-            if isinstance(self.client, OpenAI):
-                msg = chunk.choices[0].message.content
+            if isinstance(self.client, OpenAI) or isinstance(self.client, Together):
+                msg = chunk.choices[0].delta.content
             elif isinstance(self.client, Mistral):
                 msg = chunk.data.choices[0].delta.content
 
@@ -156,7 +168,9 @@ class LLM:
 
     def chat(self):
         console = Console()
-        console.print(Markdown("# ': multiline | url, rg, md | undo, save, load"))
+        console.print(
+            Markdown(f"# {self.model} | ': multiline | url, rg, md | undo, save, load")
+        )
         while True:
             P("# P: ")
             try:
@@ -202,8 +216,10 @@ class LLM:
                     all_conversations = list(reversed(all_conversations))
                     for i, (summary, _) in enumerate(all_conversations):
                         P(f"{i}: {summary}")
-                    conversation_id = IN("Enter conversation id: ")
-                    messages = self.load_conversation(conversation_id)
+                    load_choice = IN("Load: ")
+                    messages = self.load_conversation(
+                        all_conversations[int(load_choice)][1]
+                    )
                     P(messages)
                     continue
                 elif p.lower() in {"md"}:
@@ -236,7 +252,7 @@ def parse_args():
         "--model",
         type=str,
         default="mistral",
-        help="Model to use (`mistral` or `typhoon`)",
+        help="Model to use (`mistral` or `typhoon` or `together`)",
     )
     return parser.parse_args()
 
