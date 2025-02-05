@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pyperclip
 from mistralai import Mistral
 from openai import OpenAI
 from rich.console import Console
@@ -49,7 +50,7 @@ def IN(*args, **kwargs):
 
 
 class LLM:
-    def __init__(self, model="mistral"):
+    def __init__(self, model):
         if model == "typhoon":
             self.api_key = os.environ.get("OPENTYPHOON_API_KEY")
             self.base_url = "https://api.opentyphoon.ai/v1"
@@ -224,6 +225,10 @@ class LLM:
                     console.print(md)
                     P()
                     continue
+                elif p.lower() in {"copy"}:
+                    pyperclip.copy(self.messages[-1]["content"])
+                    P("Copied to clipboard")
+                    continue
 
                 P()
                 self.add_message("user", p)
@@ -248,8 +253,8 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default="mistral",
-        help="Model to use (`mistral` or `typhoon` or `together`)",
+        default="llama",
+        help="Model to use (`mistral`, `typhoon`, `llama`, `deepseek`)",
     )
     return parser.parse_args()
 
