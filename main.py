@@ -12,6 +12,7 @@ import pyperclip
 from mistralai import Mistral
 from openai import OpenAI
 from rich.console import Console
+from rich.live import Live
 from rich.markdown import Markdown
 from together import Together
 from trafilatura import extract, fetch_url
@@ -143,15 +144,17 @@ class LLM:
 
         response = ""
 
-        for chunk in stream:
-            if isinstance(self.client, OpenAI) or isinstance(self.client, Together):
-                msg = chunk.choices[0].delta.content
-            elif isinstance(self.client, Mistral):
-                msg = chunk.data.choices[0].delta.content
+        with Live() as live:
+            for chunk in stream:
+                if isinstance(self.client, OpenAI) or isinstance(self.client, Together):
+                    msg = chunk.choices[0].delta.content
+                elif isinstance(self.client, Mistral):
+                    msg = chunk.data.choices[0].delta.content
 
-            if msg:
-                P(msg, end="", flush=True)
-                response += msg
+                if msg:
+                    P(msg, end="", flush=True, file_only=True)
+                    response += msg
+                    live.update(Markdown(response))
 
         P()
         P()
@@ -171,7 +174,7 @@ class LLM:
     def chat(self):
         console = Console()
         console.print(
-            Markdown(f"# {self.model} | ' (multiline), url, rg, md | undo, save, load")
+            Markdown(f"# {self.model} | ' (multiline), url, rg | undo, save, load")
         )
         while True:
             P("# P: ")
@@ -219,11 +222,6 @@ class LLM:
                         all_conversations[int(load_choice)][1]
                     )
                     P(messages)
-                    continue
-                elif p.lower() in {"md"}:
-                    md = Markdown(self.messages[-1]["content"])
-                    console.print(md)
-                    P()
                     continue
                 elif p.lower() in {"copy"}:
                     pyperclip.copy(self.messages[-1]["content"])
