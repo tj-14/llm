@@ -173,12 +173,10 @@ class LLM:
 
     def chat(self):
         console = Console()
-        console.print(
-            Markdown(f"# {self.model} | ' (multiline), url, rg | undo, save, load")
-        )
+        console.print(Markdown(f"# {self.model} | ', url, rg | undo, save, load"))
         while True:
-            P("# P: ")
             try:
+                P("# P: ")
                 p = IN()
 
                 if p.lower() in {"'"}:
