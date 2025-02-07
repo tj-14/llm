@@ -5,7 +5,6 @@ import os
 import readline  # needed for input() to behave
 import sqlite3
 import subprocess
-import sys
 from pathlib import Path
 
 import pyperclip
@@ -181,8 +180,17 @@ class LLM:
 
                 if p.lower() in {"'"}:
                     P("Ctrl-D to end input")
-                    p = sys.stdin.read()
-                    P(p, file_only=True)
+                    p = []
+                    while True:
+                        try:
+                            line = IN()
+                        except EOFError:
+                            break
+                        if line == "paste":
+                            line = pyperclip.paste()
+                            P(line)
+                        p.append(line)
+                    p = "\n".join(p)
                 elif p.lower() in {"url"}:
                     url = IN("Enter URL: ")
                     html = fetch_url(url)
