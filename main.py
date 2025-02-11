@@ -130,7 +130,7 @@ class LLM:
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.messages,
-                max_tokens=4096,
+                max_tokens=2048,
                 temperature=0.6,
                 top_p=0.95,
                 stream=True,
@@ -179,7 +179,7 @@ class LLM:
                 p = IN()
 
                 if p.lower() in {"'"}:
-                    P("Ctrl-D to end input")
+                    P("<C-d> to end")
                     p = []
                     while True:
                         try:
@@ -192,17 +192,17 @@ class LLM:
                         p.append(line)
                     p = "\n".join(p)
                 elif p.lower() in {"url"}:
-                    url = IN("Enter URL: ")
+                    url = IN("URL: ")
                     html = fetch_url(url)
                     text = extract(html)
 
                     p = self.rag_prompt(text, url)
                 elif p.lower() in {"rg"}:
-                    g = IN()
+                    g = IN("search term: ")
                     rg = subprocess.run(
                         ["rg", "-i", g, str(VAULTDIR), "-l"], capture_output=True
                     )
-                    choices = rg.stdout.decode().split("\n")
+                    choices = rg.stdout.decode().strip().split("\n")
                     choices = choices[:N_RG_CHOICES]
                     for i, choice in enumerate(choices):
                         P(f"{i}: {Path(choice).relative_to(VAULTDIR)}")
