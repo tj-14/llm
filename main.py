@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pyperclip
+from dotenv import load_dotenv
 from mistralai import Mistral
 from openai import OpenAI
 from rich.console import Console
@@ -264,5 +265,6 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     args = parse_args()
     main(args)
