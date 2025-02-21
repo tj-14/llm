@@ -201,17 +201,26 @@ class LLM:
                 elif p.lower() in {"rg"}:
                     g = IN("search term: ")
                     rg = subprocess.run(
-                        ["rg", "-i", g, str(VAULTDIR), "-l"], capture_output=True
+                        ["rg", "-i", g, str(VAULTDIR), "-l"],
+                        capture_output=True,
                     )
-                    choices = rg.stdout.decode().strip().split("\n")
-                    choices = choices[:N_RG_CHOICES]
-                    for i, choice in enumerate(choices):
-                        P(f"{i}: {Path(choice).relative_to(VAULTDIR)}")
-                    choice = int(IN())
-                    with open(choices[choice]) as f:
-                        text = f.read()
+                    choices = "\n".join(
+                        [
+                            str(Path(choice).relative_to(VAULTDIR))
+                            for choice in rg.stdout.decode().strip().split("\n")
+                        ]
+                    ).encode()
 
-                    p = self.rag_prompt(text, choices[choice])
+                    fzf = subprocess.run(
+                        ["fzf"],
+                        input=choices,
+                        capture_output=True,
+                    )
+                    file = VAULTDIR / fzf.stdout.decode().strip()
+
+                    with open(file) as f:
+                        text = f.read()
+                    p = self.rag_prompt(text, file)
                 elif p.lower() in {"undo"}:
                     self.undo_message()
                     continue
