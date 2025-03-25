@@ -17,7 +17,7 @@ from rich.markdown import Markdown
 from together import Together
 from trafilatura import extract, fetch_url
 
-from constants import BASEPATH, DATABASE, N_CONVERSATIONS, N_RG_CHOICES, VAULTDIR
+from constants import BASEPATH, DATABASE, N_CONVERSATIONS, VAULTDIR
 
 
 class LOGGER:
@@ -68,10 +68,18 @@ class LLM:
             self.api_key = os.environ.get("TOGETHER_API_KEY")
             self.client = Together(api_key=self.api_key)
             self.model = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
-        elif model == "deepseek":
+        elif model == "deepseek-r1-distill":
             self.api_key = os.environ.get("TOGETHER_API_KEY")
             self.client = Together(api_key=self.api_key)
             self.model = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
+        elif model == "deepseek":
+            self.api_key = os.environ.get("DEEPSEEK_API_KEY")
+            self.base_url = "https://openrouter.ai/api/v1"
+            self.client = OpenAI(
+                base_url=self.base_url,
+                api_key=self.api_key,
+            )
+            self.model = "deepseek/deepseek-chat-v3-0324:free"
 
         self.messages = []
         self.conn = sqlite3.connect(DATABASE)
@@ -267,7 +275,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default="llama",
+        default="deepseek",
         help="Model to use (`mistral`, `typhoon`, `llama`, `deepseek`)",
     )
     return parser.parse_args()
