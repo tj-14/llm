@@ -10,6 +10,7 @@ from pathlib import Path
 import pyperclip
 from dotenv import load_dotenv
 from mistralai import Mistral
+from ollama import chat
 from openai import OpenAI
 from rich.console import Console
 from rich.live import Live
@@ -60,6 +61,9 @@ class LLM:
                 base_url=self.base_url,
             )
             self.model = "typhoon-v2-70b-instruct"
+        elif model == "typhoon2.1":
+            self.client = "ollama"
+            self.model = "scb10x/typhoon2.1-gemma3-12b"
         elif model == "mistral":
             self.api_key = os.environ.get("MISTRAL_API_KEY")
             self.model = "mistral-small-latest"
@@ -149,6 +153,12 @@ class LLM:
                 model=self.model,
                 messages=self.messages,
             )
+        elif self.client == "ollama":
+            stream = chat(
+                model=self.model,
+                messages=self.messages,
+                stream=True,
+            )
 
         response = ""
 
@@ -158,6 +168,8 @@ class LLM:
                     msg = chunk.choices[0].delta.content
                 elif isinstance(self.client, Mistral):
                     msg = chunk.data.choices[0].delta.content
+                elif self.client == "ollama":
+                    msg = chunk["message"]["content"]
 
                 if msg:
                     P(msg, end="", flush=True, file_only=True)
@@ -275,7 +287,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         type=str,
-        default="deepseek",
+        default="typhoon2.1",
         help="Model to use (`mistral`, `typhoon`, `llama`, `deepseek`)",
     )
     return parser.parse_args()
